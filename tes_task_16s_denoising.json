@@ -1,0 +1,94 @@
+{
+  "name": "16S rRNA amplicon denoising (QIIME2/DADA2)",
+  "description": "Synthetic gut-microbiome scenario for HDR UK Team 3's GA4GH interoperability challenge. Imports paired-end 16S rRNA V3-V4 amplicon reads, trims primers, and denoises with DADA2 (via QIIME2) to produce a feature table and representative sequences. Demonstrates a federated task: compute is described here and dispatched to wherever the input data already resides, rather than moving the sequencing data itself.",
+  "tags": {
+    "project": "hdr-uk-team3-ga4gh-challenge",
+    "workflow": "16s-denoising-demo",
+    "data_domain": "gut-microbiome"
+  },
+  "inputs": [
+    {
+      "name": "raw_reads",
+      "description": "Paired-end 16S rRNA V3-V4 FASTQ files in Casava demultiplexed format (one sample pair, gzip-compressed).",
+      "url": "s3://federated-node-example/raw_reads/",
+      "path": "/data/raw_reads",
+      "type": "DIRECTORY"
+    }
+  ],
+  "outputs": [
+    {
+      "name": "feature_table",
+      "description": "DADA2 feature table (samples x amplicon sequence variants).",
+      "url": "s3://federated-node-example/results/table.qza",
+      "path": "/data/work/table.qza",
+      "type": "FILE"
+    },
+    {
+      "name": "representative_sequences",
+      "description": "Representative sequence for each amplicon sequence variant.",
+      "url": "s3://federated-node-example/results/rep-seqs.qza",
+      "path": "/data/work/rep-seqs.qza",
+      "type": "FILE"
+    },
+    {
+      "name": "denoising_stats",
+      "description": "Per-sample DADA2 denoising statistics (reads filtered, merged, chimera-checked).",
+      "url": "s3://federated-node-example/results/denoising-stats.qza",
+      "path": "/data/work/denoising-stats.qza",
+      "type": "FILE"
+    }
+  ],
+  "resources": {
+    "cpu_cores": 4,
+    "ram_gb": 16,
+    "disk_gb": 20,
+    "preemptible": false
+  },
+  "volumes": [
+    "/data/work"
+  ],
+  "executors": [
+    {
+      "image": "quay.io/qiime2/amplicon:2024.2",
+      "command": [
+        "qiime", "tools", "import",
+        "--type", "SampleData[PairedEndSequencesWithQuality]",
+        "--input-path", "/data/raw_reads",
+        "--input-format", "CasavaOneEightSingleLanePerSampleDirFmt",
+        "--output-path", "/data/work/demux.qza"
+      ],
+      "workdir": "/data/work",
+      "stdout": "/data/work/logs/01_import.stdout.log",
+      "stderr": "/data/work/logs/01_import.stderr.log"
+    },
+    {
+      "image": "quay.io/qiime2/amplicon:2024.2",
+      "command": [
+        "qiime", "cutadapt", "trim-paired",
+        "--i-demultiplexed-sequences", "/data/work/demux.qza",
+        "--p-front-f", "GTGYCAGCMGCCGCGGTAA",
+        "--p-front-r", "GGACTACNVGGGTWTCTAAT",
+        "--o-trimmed-sequences", "/data/work/trimmed.qza"
+      ],
+      "workdir": "/data/work",
+      "stdout": "/data/work/logs/02_trim.stdout.log",
+      "stderr": "/data/work/logs/02_trim.stderr.log"
+    },
+    {
+      "image": "quay.io/qiime2/amplicon:2024.2",
+      "command": [
+        "qiime", "dada2", "denoise-paired",
+        "--i-demultiplexed-seqs", "/data/work/trimmed.qza",
+        "--p-trunc-len-f", "0",
+        "--p-trunc-len-r", "0",
+        "--p-n-threads", "0",
+        "--o-table", "/data/work/table.qza",
+        "--o-representative-sequences", "/data/work/rep-seqs.qza",
+        "--o-denoising-stats", "/data/work/denoising-stats.qza"
+      ],
+      "workdir": "/data/work",
+      "stdout": "/data/work/logs/03_dada2.stdout.log",
+      "stderr": "/data/work/logs/03_dada2.stderr.log"
+    }
+  ]
+}

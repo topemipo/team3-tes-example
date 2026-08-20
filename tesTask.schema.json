@@ -1,0 +1,426 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "required": [
+    "executors"
+  ],
+  "type": "object",
+  "properties": {
+    "id": {
+      "type": "string",
+      "description": "Task identifier assigned by the server.",
+      "readOnly": true,
+      "example": "job-0012345"
+    },
+    "state": {
+      "$ref": "#/$defs/tesState"
+    },
+    "name": {
+      "type": "string",
+      "description": "User-provided task name."
+    },
+    "description": {
+      "type": "string",
+      "description": "Optional user-provided description of task for documentation purposes."
+    },
+    "inputs": {
+      "type": "array",
+      "description": "Input files that will be used by the task. Inputs will be downloaded\nand mounted into the executor container as defined by the task request\ndocument.",
+      "items": {
+        "$ref": "#/$defs/tesInput"
+      },
+      "example": [
+        {
+          "url": "s3://my-object-store/file1",
+          "path": "/data/file1"
+        }
+      ]
+    },
+    "outputs": {
+      "type": "array",
+      "description": "Output files.\nOutputs will be uploaded from the executor container to long-term storage.",
+      "items": {
+        "$ref": "#/$defs/tesOutput"
+      },
+      "example": [
+        {
+          "path": "/data/outfile",
+          "url": "s3://my-object-store/outfile-1",
+          "type": "FILE"
+        }
+      ]
+    },
+    "resources": {
+      "$ref": "#/$defs/tesResources"
+    },
+    "executors": {
+      "type": "array",
+      "description": "An array of executors to be run. Each of the executors will run one\nat a time sequentially. Each executor is a different command that\nwill be run, and each can utilize a different docker image. But each of\nthe executors will see the same mapped inputs and volumes that are declared\nin the parent CreateTask message.\n\nExecution stops on the first error.",
+      "items": {
+        "$ref": "#/$defs/tesExecutor"
+      }
+    },
+    "volumes": {
+      "type": "array",
+      "example": [
+        "/vol/A/"
+      ],
+      "description": "Volumes are directories which may be used to share data between\nExecutors. Volumes are initialized as empty directories by the\nsystem when the task starts and are mounted at the same path\nin each Executor.\n\nFor example, given a volume defined at `/vol/A`,\nexecutor 1 may write a file to `/vol/A/exec1.out.txt`, then\nexecutor 2 may read from that file.\n\n(Essentially, this translates to a `docker run -v` flag where\nthe container path is the same for each executor).",
+      "items": {
+        "type": "string"
+      }
+    },
+    "tags": {
+      "type": "object",
+      "example": {
+        "WORKFLOW_ID": "cwl-01234",
+        "PROJECT_GROUP": "alice-lab"
+      },
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "A key-value map of arbitrary tags. These can be used to store meta-data\nand annotations about a task. Example:\n```\n{\n  \"tags\" : {\n      \"WORKFLOW_ID\" : \"cwl-01234\",\n      \"PROJECT_GROUP\" : \"alice-lab\"\n  }\n}\n```"
+    },
+    "logs": {
+      "type": "array",
+      "description": "Task logging information.\nNormally, this will contain only one entry, but in the case where\na task fails and is retried, an entry will be appended to this list.",
+      "readOnly": true,
+      "items": {
+        "$ref": "#/$defs/tesTaskLog"
+      }
+    },
+    "creation_time": {
+      "type": "string",
+      "description": "Date + time the task was created, in RFC 3339 format.\nThis is set by the system, not the client.",
+      "example": "2020-10-02 10:00:00-05:00",
+      "readOnly": true
+    }
+  },
+  "description": "Task describes an instance of a task.",
+  "$defs": {
+    "tesOutput": {
+      "required": [
+        "path",
+        "url"
+      ],
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "User-provided name of output file"
+        },
+        "description": {
+          "type": "string",
+          "description": "Optional users provided description field, can be used for documentation."
+        },
+        "url": {
+          "type": "string",
+          "description": "URL at which the TES server makes the output accessible after the task is complete.\nWhen tesOutput.path contains wildcards, it must be a directory; see\n`tesOutput.path_prefix` for details on how output URLs are constructed in this case.\nFor Example:\n - `s3://my-object-store/file1`\n - `gs://my-bucket/file2`\n - `file:///path/to/my/file`"
+        },
+        "path": {
+          "type": "string",
+          "description": "Absolute path of the file inside the container.\nMay contain pattern matching wildcards to select multiple outputs at once, but mind\nimplications for `tesOutput.url` and `tesOutput.path_prefix`.\nOnly wildcards defined in IEEE Std 1003.1-2017 (POSIX), 12.3 are supported; see\nhttps://pubs.opengroup.org/onlinepubs/9699919799/utilities/V3_chap02.html#tag_18_13"
+        },
+        "path_prefix": {
+          "type": "string",
+          "description": "Prefix to be removed from matching outputs if `tesOutput.path` contains wildcards;\noutput URLs are constructed by appending pruned paths to the directory specfied\nin `tesOutput.url`.\nRequired if `tesOutput.path` contains wildcards, ignored otherwise."
+        },
+        "type": {
+          "$ref": "#/$defs/tesFileType"
+        }
+      },
+      "description": "Output describes Task output files."
+    },
+    "tesInput": {
+      "required": [
+        "path"
+      ],
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "url": {
+          "type": "string",
+          "description": "REQUIRED, unless \"content\" is set.\n\nURL in long term storage, for example:\n - s3://my-object-store/file1\n - gs://my-bucket/file2\n - file:///path/to/my/file\n - /path/to/my/file",
+          "example": "s3://my-object-store/file1"
+        },
+        "path": {
+          "type": "string",
+          "description": "Path of the file inside the container.\nMust be an absolute path.",
+          "example": "/data/file1"
+        },
+        "type": {
+          "$ref": "#/$defs/tesFileType"
+        },
+        "content": {
+          "type": "string",
+          "description": "File content literal.\n\nImplementations should support a minimum of 128 KiB in this field\nand may define their own maximum.\n\nUTF-8 encoded\n\nIf content is not empty, \"url\" must be ignored."
+        },
+        "streamable": {
+          "type": "boolean",
+          "description": "Indicate that a file resource could be accessed using a streaming\ninterface, ie a FUSE mounted s3 object. This flag indicates that\nusing a streaming mount, as opposed to downloading the whole file to\nthe local scratch space, may be faster despite the latency and\noverhead. This does not mean that the backend will use a streaming\ninterface, as it may not be provided by the vendor, but if the\ncapacity is avalible it can be used without degrading the\nperformance of the underlying program."
+        }
+      },
+      "description": "Input describes Task input files."
+    },
+    "tesExecutor": {
+      "required": [
+        "command",
+        "image"
+      ],
+      "type": "object",
+      "properties": {
+        "image": {
+          "type": "string",
+          "example": "ubuntu:20.04",
+          "description": "Name of the container image. The string will be passed as the image\nargument to the containerization run command. Examples:\n   - `ubuntu`\n   - `quay.io/aptible/ubuntu`\n   - `gcr.io/my-org/my-image`\n   - `myregistryhost:5000/fedora/httpd:version1.0`"
+        },
+        "command": {
+          "type": "array",
+          "description": "A sequence of program arguments to execute, where the first argument\nis the program to execute (i.e. argv). Example:\n```\n{\n  \"command\" : [\"/bin/md5\", \"/data/file1\"]\n}\n```",
+          "items": {
+            "type": "string"
+          },
+          "example": [
+            "/bin/md5",
+            "/data/file1"
+          ]
+        },
+        "workdir": {
+          "type": "string",
+          "description": "The working directory that the command will be executed in.\nIf not defined, the system will default to the directory set by\nthe container image.",
+          "example": "/data/"
+        },
+        "stdin": {
+          "type": "string",
+          "description": "Path inside the container to a file which will be piped\nto the executor's stdin. This must be an absolute path. This mechanism\ncould be used in conjunction with the input declaration to process\na data file using a tool that expects STDIN.\n\nFor example, to get the MD5 sum of a file by reading it into the STDIN\n```\n{\n  \"command\" : [\"/bin/md5\"],\n  \"stdin\" : \"/data/file1\"\n}\n```",
+          "example": "/data/file1"
+        },
+        "stdout": {
+          "type": "string",
+          "description": "Path inside the container to a file where the executor's\nstdout will be written to. Must be an absolute path. Example:\n```\n{\n  \"stdout\" : \"/tmp/stdout.log\"\n}\n```",
+          "example": "/tmp/stdout.log"
+        },
+        "stderr": {
+          "type": "string",
+          "description": "Path inside the container to a file where the executor's\nstderr will be written to. Must be an absolute path. Example:\n```\n{\n  \"stderr\" : \"/tmp/stderr.log\"\n}\n```",
+          "example": "/tmp/stderr.log"
+        },
+        "env": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "Enviromental variables to set within the container. Example:\n```\n{\n  \"env\" : {\n    \"ENV_CONFIG_PATH\" : \"/data/config.file\",\n    \"BLASTDB\" : \"/data/GRC38\",\n    \"HMMERDB\" : \"/data/hmmer\"\n  }\n}\n```",
+          "example": {
+            "BLASTDB": "/data/GRC38",
+            "HMMERDB": "/data/hmmer"
+          }
+        },
+        "ignore_error": {
+          "type": "boolean",
+          "description": "Default behavior of running an array of executors is that execution\nstops on the first error. If `ignore_error` is `True`, then the\nrunner will record error exit codes, but will continue on to the next\ntesExecutor."
+        }
+      },
+      "description": "Executor describes a command to be executed, and its environment."
+    },
+    "tesExecutorLog": {
+      "required": [
+        "exit_code"
+      ],
+      "type": "object",
+      "properties": {
+        "start_time": {
+          "type": "string",
+          "description": "Time the executor started, in RFC 3339 format.",
+          "example": "2020-10-02 10:00:00-05:00"
+        },
+        "end_time": {
+          "type": "string",
+          "description": "Time the executor ended, in RFC 3339 format.",
+          "example": "2020-10-02 11:00:00-05:00"
+        },
+        "stdout": {
+          "type": "string",
+          "description": "Stdout content.\n\nThis is meant for convenience. No guarantees are made about the content.\nImplementations may chose different approaches: only the head, only the tail,\na URL reference only, etc.\n\nIn order to capture the full stdout client should set Executor.stdout\nto a container file path, and use Task.outputs to upload that file\nto permanent storage."
+        },
+        "stderr": {
+          "type": "string",
+          "description": "Stderr content.\n\nThis is meant for convenience. No guarantees are made about the content.\nImplementations may chose different approaches: only the head, only the tail,\na URL reference only, etc.\n\nIn order to capture the full stderr client should set Executor.stderr\nto a container file path, and use Task.outputs to upload that file\nto permanent storage."
+        },
+        "exit_code": {
+          "type": "integer",
+          "description": "Exit code.",
+          "format": "int32"
+        }
+      },
+      "description": "ExecutorLog describes logging information related to an Executor."
+    },
+    "tesState": {
+      "type": "string",
+      "readOnly": true,
+      "description": "Task state as defined by the server.\n\n - `UNKNOWN`: The state of the task is unknown. The cause for this status\n  message may be dependent on the underlying system. The `UNKNOWN` states\n  provides a safe default for messages where this field is missing so\n  that a missing field does not accidentally imply that\n  the state is QUEUED.\n - `QUEUED`: The task is queued and awaiting resources to begin computing.\n - `INITIALIZING`: The task has been assigned to a worker and is currently preparing to run.\nFor example, the worker may be turning on, downloading input files, etc.\n - `RUNNING`: The task is running. Input files are downloaded and the first Executor\nhas been started.\n - `PAUSED`: The task is paused. The reasons for this would be tied to\n  the specific system running the job. An implementation may have the ability\n  to pause a task, but this is not required.\n - `COMPLETE`: The task has completed running. Executors have exited without error\nand output files have been successfully uploaded.\n - `EXECUTOR_ERROR`: The task encountered an error in one of the Executor processes. Generally,\nthis means that an Executor exited with a non-zero exit code.\n - `SYSTEM_ERROR`: The task was stopped due to a system error, but not from an Executor,\nfor example an upload failed due to network issues, the worker's ran out\nof disk space, etc.\n - `CANCELED`: The task was canceled by the user, and downstream resources have been deleted.\n - `CANCELING`: The task was canceled by the user,\nbut the downstream resources are still awaiting deletion.\n - `PREEMPTED`: The task is stopped (preempted) by the system. The reasons for this would be tied to\nthe specific system running the job. Generally, this means that the system reclaimed the compute\ncapacity for reallocation.",
+      "default": "UNKNOWN",
+      "example": "COMPLETE",
+      "enum": [
+        "UNKNOWN",
+        "QUEUED",
+        "INITIALIZING",
+        "RUNNING",
+        "PAUSED",
+        "COMPLETE",
+        "EXECUTOR_ERROR",
+        "SYSTEM_ERROR",
+        "CANCELED",
+        "PREEMPTED",
+        "CANCELING"
+      ]
+    },
+    "tesResources": {
+      "type": "object",
+      "properties": {
+        "cpu_cores": {
+          "type": "integer",
+          "description": "Requested number of CPUs",
+          "format": "int32",
+          "example": 4
+        },
+        "preemptible": {
+          "type": "boolean",
+          "description": "Define if the task is allowed to run on preemptible compute instances,\nfor example, AWS Spot. This option may have no effect when utilized\non some backends that don't have the concept of preemptible jobs.",
+          "format": "boolean",
+          "example": false
+        },
+        "ram_gb": {
+          "type": "number",
+          "description": "Requested RAM required in gigabytes (GB)",
+          "format": "double",
+          "example": 8
+        },
+        "disk_gb": {
+          "type": "number",
+          "description": "Requested disk size in gigabytes (GB)",
+          "format": "double",
+          "example": 40
+        },
+        "zones": {
+          "type": "array",
+          "description": "Request that the task be run in these compute zones. How this string\nis utilized will be dependent on the backend system. For example, a\nsystem based on a cluster queueing system may use this string to define\npriorty queue to which the job is assigned.",
+          "items": {
+            "type": "string"
+          },
+          "example": "us-west-1"
+        },
+        "backend_parameters": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "Key/value pairs for backend configuration.\nServiceInfo shall return a list of keys that a backend supports.\nKeys are case insensitive.\nIt is expected that clients pass all runtime or hardware requirement key/values\nthat are not mapped to existing tesResources properties to backend_parameters.\nBackends shall log system warnings if a key is passed that is unsupported.\nBackends shall not store or return unsupported keys if included in a task.\nIf backend_parameters_strict equals true,\nbackends should fail the task if any key/values are unsupported, otherwise,\nbackends should attempt to run the task\nIntended uses include VM size selection, coprocessor configuration, etc.\nExample:\n```\n{\n  \"backend_parameters\" : {\n    \"VmSize\" : \"Standard_D64_v3\"\n  }\n}\n```",
+          "example": {
+            "VmSize": "Standard_D64_v3"
+          }
+        },
+        "backend_parameters_strict": {
+          "type": "boolean",
+          "description": "If set to true, backends should fail the task if any backend_parameters\nkey/values are unsupported, otherwise, backends should attempt to run the task",
+          "format": "boolean",
+          "default": false,
+          "example": false
+        }
+      },
+      "description": "Resources describes the resources requested by a task."
+    },
+    "tesFileType": {
+      "type": "string",
+      "description": "Define if input/output element is a file or a directory. It is not required\nthat the user provide this value, but it is required that the server fill in the\nvalue once the information is avalible at run time.",
+      "default": "FILE",
+      "enum": [
+        "FILE",
+        "DIRECTORY"
+      ]
+    },
+    "tesOutputFileLog": {
+      "required": [
+        "path",
+        "size_bytes",
+        "url"
+      ],
+      "type": "object",
+      "properties": {
+        "url": {
+          "type": "string",
+          "description": "URL of the file in storage, e.g. s3://bucket/file.txt"
+        },
+        "path": {
+          "type": "string",
+          "description": "Path of the file inside the container. Must be an absolute path."
+        },
+        "size_bytes": {
+          "type": "string",
+          "description": "Size of the file in bytes. Note, this is currently coded as a string\nbecause official JSON doesn't support int64 numbers.",
+          "format": "int64",
+          "example": [
+            "1024"
+          ]
+        }
+      },
+      "description": "OutputFileLog describes a single output file. This describes\nfile details after the task has completed successfully,\nfor logging purposes."
+    },
+    "tesTaskLog": {
+      "required": [
+        "logs",
+        "outputs"
+      ],
+      "type": "object",
+      "properties": {
+        "logs": {
+          "type": "array",
+          "description": "Logs for each executor",
+          "items": {
+            "$ref": "#/$defs/tesExecutorLog"
+          }
+        },
+        "metadata": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "Arbitrary logging metadata included by the implementation.",
+          "example": {
+            "host": "worker-001",
+            "slurmm_id": 123456
+          }
+        },
+        "start_time": {
+          "type": "string",
+          "description": "When the task started, in RFC 3339 format.",
+          "example": "2020-10-02 10:00:00-05:00"
+        },
+        "end_time": {
+          "type": "string",
+          "description": "When the task ended, in RFC 3339 format.",
+          "example": "2020-10-02 11:00:00-05:00"
+        },
+        "outputs": {
+          "type": "array",
+          "description": "Information about all output files. Directory outputs are\nflattened into separate items.",
+          "items": {
+            "$ref": "#/$defs/tesOutputFileLog"
+          }
+        },
+        "system_logs": {
+          "type": "array",
+          "description": "System logs are any logs the system decides are relevant,\nwhich are not tied directly to an Executor process.\nContent is implementation specific: format, size, etc.\n\nSystem logs may be collected here to provide convenient access.\n\nFor example, the system may include the name of the host\nwhere the task is executing, an error message that caused\na SYSTEM_ERROR state (e.g. disk is full), etc.\n\nSystem logs are only included in the FULL task view.",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "description": "TaskLog describes logging information related to a Task."
+    }
+  }
+}
