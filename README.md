@@ -84,5 +84,4 @@ All accessed 19 August 2026.
 
 ## Team
 
-Temitope Adeyelu (Lead), Victor Daniel, Aisosa Elizabeth Erhunmwunsee, Aseel Fadl,
-Charles Bruce, Emmanuel Oparaku, Kayode Olaseni.
+Temitope Adeyelu, Emmanuel Oparaku, Victor Daniel, Aisosa Elizabeth Erhunmwunsee, Aseel Fadl, .
