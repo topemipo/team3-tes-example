@@ -1,6 +1,6 @@
 # A GA4GH TES task document, built and validated
 
-**Team 3 — Interoperability · HDR UK Black Internship Programme 2026**
+**Team 3: Rosetta · HDR UK Black Internship Programme 2026**
 
 This repository holds one example **task document** written to the
 [GA4GH Task Execution Service (TES)](https://www.ga4gh.org/product/task-execution-service-tes/)
